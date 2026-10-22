@@ -1,6 +1,6 @@
 /* 选手机系统 —— 页面只渲染，机型数据全在 phones.json。
    改机型/改档位/改奖励，都只动 phones.json，不动这个文件。
-
+test
    数据怎么进页面（两条路，顺序如下）：
    1) phones.js —— 由 Temp/ephcheck/_phone_build.mjs 从 phones.json 生成的 `window.__PHONES = {...}`。
       有了它，双击 index.html（file://）也能看，因为浏览器在 file:// 下不允许 fetch 同目录的 json。
