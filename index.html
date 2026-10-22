@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>选手机 · 按分数给预算</title>
+<style>
+:root{
+  --ink:#07080e; --ink2:#0c0e17;
+  --glass:rgba(255,255,255,.045); --glass-hi:rgba(255,255,255,.085);
+  --line:rgba(255,255,255,.10); --txt:#f5f6fb; --dim:#aab2c6; --dimmer:#8b94ab;
+  --gold:#ffc861; --sky:#6aa8ff; --ok:#3ddc97; --warn:#ffb020; --bad:#ff6b5e;
+  --r:16px; --shadow:0 16px 40px -18px rgba(0,0,0,.8);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--ink);color:var(--txt);line-height:1.55;min-height:100vh;
+  font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",sans-serif}
+.bg{position:fixed;inset:0;z-index:-1;background:
+  radial-gradient(900px 520px at 10% -8%,rgba(255,200,97,.13),transparent 60%),
+  radial-gradient(820px 500px at 92% 4%,rgba(106,168,255,.12),transparent 58%),
+  linear-gradient(180deg,var(--ink),var(--ink2) 55%,var(--ink))}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 16px 64px}
+
+header{padding:26px 26px 22px;margin-bottom:18px;border-radius:20px;
+  background:linear-gradient(135deg,rgba(255,200,97,.12),rgba(106,168,255,.05) 55%,rgba(255,255,255,.02));
+  border:1px solid var(--line);box-shadow:var(--shadow)}
+header h1{font-size:26px;letter-spacing:.5px}
+header .sub{color:var(--dim);font-size:13.5px;margin-top:7px}
+.baseline{display:inline-block;margin-top:12px;padding:5px 11px;border-radius:999px;
+  background:var(--glass);border:1px solid var(--line);font-size:12.5px;color:var(--dim)}
+
+.card{background:var(--glass);border:1px solid var(--line);border-radius:var(--r);
+  padding:18px 18px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card h2{font-size:15px;letter-spacing:.6px;color:var(--gold);margin-bottom:12px;font-weight:600}
+.hint{font-size:12.5px;color:var(--dimmer);margin-top:10px}
+
+label{font-size:13px;color:var(--dim)}
+input[type=number]{width:118px;padding:9px 11px;border-radius:10px;background:var(--ink2);
+  border:1px solid var(--line);color:var(--txt);font-size:19px;font-weight:600}
+input[type=number]:focus{outline:none;border-color:var(--gold)}
+.chipbtn{margin-left:8px;padding:7px 12px;border-radius:10px;cursor:pointer;font-size:12.5px;
+  background:transparent;border:1px solid var(--line);color:var(--dim)}
+.chipbtn:hover{background:var(--glass-hi);color:var(--txt)}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+
+.budget{display:flex;flex-wrap:wrap;gap:18px;align-items:baseline;margin-top:6px}
+.budget .amt{font-size:38px;font-weight:700;color:var(--gold);letter-spacing:.5px}
+.budget .band{font-size:13px;color:var(--dim)}
+.budget .say{font-size:13px;color:var(--sky);flex-basis:100%}
+
+ul.rules{list-style:none;font-size:13px;color:var(--dim)}
+ul.rules li{padding:5px 0 5px 16px;position:relative}
+ul.rules li::before{content:"";position:absolute;left:0;top:12.5px;width:6px;height:6px;
+  border-radius:50%;background:var(--gold)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+th{color:var(--dimmer);font-weight:500;font-size:12px}
+td b{color:var(--gold);font-weight:600}
+tr.dead td{color:var(--dimmer)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px}
+.pcard{background:var(--glass);border:1px solid var(--line);border-radius:var(--r);padding:16px;
+  display:flex;flex-direction:column;gap:10px}
+.pcard.sel{border-color:var(--gold);box-shadow:0 0 0 1px rgba(255,200,97,.35)}
+.ptop{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.pname{font-size:16px;font-weight:600}
+.pbrand{font-size:11.5px;color:var(--dimmer);letter-spacing:.4px}
+.price{margin-left:auto;text-align:right}
+.price .amt{font-size:22px;font-weight:700;color:var(--gold);white-space:nowrap}
+.price small{display:block;font-size:11px;color:var(--dimmer);text-align:right;margin-top:2px;max-width:240px}
+.pimg{display:flex;justify-content:center;align-items:center;gap:10px;height:150px;margin:8px 0 10px;
+  background:radial-gradient(150px 110px at 50% 50%,rgba(255,255,255,.055),transparent 72%)}
+.pimg img{height:148px;width:auto;max-width:46%;object-fit:contain;display:block}
+.pimg:empty{display:none}
+.specs{display:flex;flex-wrap:wrap;gap:6px}
+.sp{font-size:11.5px;padding:3px 8px;border-radius:7px;background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.07);color:var(--dim)}
+.sp.good{color:var(--ok);border-color:rgba(61,220,151,.3)}
+.sp.warn{color:var(--warn);border-color:rgba(255,176,32,.32)}
+.sp.bad{color:var(--bad);border-color:rgba(255,107,94,.32)}
+.note{font-size:12px;color:var(--dimmer)}
+.buy{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+.buy a{font-size:12.5px;padding:8px 12px;border-radius:10px;text-decoration:none;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--txt)}
+.buy a:hover{background:rgba(255,255,255,.12)}
+.buy a.pri{background:var(--gold);color:#1b1503;border-color:var(--gold);font-weight:600}
+.pfoot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:auto}
+.tally{font-size:11.5px;color:var(--dimmer)}
+.tally b{color:var(--sky)}
+
+.prio{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.prio .it{display:flex;align-items:center;gap:6px;font-size:13px;padding:7px 11px;border-radius:10px;
+  background:rgba(255,255,255,.04);border:1px solid var(--line)}
+.prio .it input{width:17px;height:17px;accent-color:var(--gold)}
+.order{list-style:none;display:flex;flex-direction:column;gap:7px;counter-reset:o}
+.order li{display:flex;align-items:center;gap:10px;font-size:13.5px;padding:9px 12px;border-radius:11px;
+  background:rgba(255,255,255,.04);border:1px solid var(--line)}
+.order li .n{width:22px;height:22px;border-radius:50%;background:var(--glass-hi);display:grid;place-items:center;
+  font-size:12px;color:var(--dim)}
+.order li .grow{flex:1}
+.ordrbtn{all:unset;cursor:pointer;padding:2px 8px;border-radius:7px;color:var(--dim);border:1px solid var(--line)}
+.ordrbtn:hover{background:var(--glass-hi);color:var(--txt)}
+textarea{width:100%;min-height:74px;padding:11px;border-radius:11px;background:var(--ink2);
+  border:1px solid var(--line);color:var(--txt);font-size:13.5px;font-family:inherit;resize:vertical}
+textarea:focus{outline:none;border-color:var(--sky)}
+.acts{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+button.primary,button.ghost{padding:10px 16px;border-radius:11px;cursor:pointer;font-size:13.5px;
+  border:1px solid var(--gold);background:var(--gold);color:#1b1503;font-weight:600}
+button.ghost{background:transparent;color:var(--dim);border-color:var(--line);font-weight:400}
+button.primary:hover{filter:brightness(1.08)}
+.empty{padding:26px;text-align:center;color:var(--dim);font-size:13.5px;border:1px dashed var(--line);border-radius:var(--r)}
+.under{margin-top:14px}
+.under summary{cursor:pointer;font-size:13px;color:var(--dim);padding:9px 12px;border-radius:11px;
+  background:rgba(255,255,255,.04);border:1px solid var(--line)}
+.under summary:hover{color:var(--txt);border-color:var(--gold)}
+.under .grid{margin-top:12px}
+footer{margin-top:24px;font-size:12px;color:var(--dimmer);text-align:center}
+@media (max-width:390px){
+  header{padding:20px 16px}
+  .budget .amt{font-size:32px}
+  .pimg{height:126px}
+  .pimg img{height:124px}
+}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="wrap">
+
+<header>
+  <h1>选手机 · 按分数给预算</h1>
+  <div class="sub">明年高考完买。分数换预算，预算换机型 —— 机型这一层不写死在页面里，读的是同目录下的 <code>phones.js</code>（改数据改 <code>phones.json</code>，再由脚本生成它）。</div>
+  <div class="baseline" id="baseline"></div>
+  <a class="baseline" href="guide.html" style="margin-left:8px;text-decoration:none">看不懂参数？看「看懂配置」→</a>
+</header>
+
+<section class="card">
+  <h2>分数与预算</h2>
+  <div class="row">
+    <label for="score">填一个分数</label>
+    <input type="number" id="score" min="450" max="750" step="1" value="490">
+    <span id="quick"></span>
+  </div>
+  <div class="budget">
+    <div class="amt" id="budAmt">—</div>
+    <div class="band" id="budBand"></div>
+    <div class="say" id="budSay"></div>
+  </div>
+  <div class="hint">预算是上限不是目标。同价位里挑你看着顺眼的，剩下的小钱留着买手机壳、贴模、以旧换新。</div>
+</section>
+
+<section class="card">
+  <h2>硬性条件（不满足就不进候选）</h2>
+  <ul class="rules" id="hardList"></ul>
+  <div class="hint" id="unranked"></div>
+</section>
+
+<section class="card">
+  <h2>候选机型</h2>
+  <div class="row" style="margin-bottom:12px">
+    <label class="row" style="gap:6px;cursor:pointer">
+      <input type="checkbox" id="onlySel" style="width:16px;height:16px;accent-color:var(--gold)">只看我选中的
+    </label>
+    <button class="ghost" id="clearSel" style="padding:6px 12px;font-size:12.5px">清空已选</button>
+    <span class="tally" id="selTally"></span>
+  </div>
+  <div class="hint" id="liveStamp"></div>
+  <div id="phones"></div>
+  <div class="hint" id="phint"></div>
+</section>
+
+<section class="card">
+  <h2>你自己填这一栏</h2>
+  <div style="font-size:12.5px;color:var(--dim);margin-bottom:8px">在意什么（可多选）</div>
+  <div class="prio" id="prefChips"></div>
+  <div style="font-size:12.5px;color:var(--dim);margin:6px 0 8px">按重要程度排序，用 ↑ ↓ 调</div>
+  <ol class="order" id="prefOrder"></ol>
+  <div class="row" style="gap:18px;margin-top:14px">
+    <label class="row" style="gap:6px;cursor:pointer">
+      <input type="checkbox" id="camPay" style="width:16px;height:16px;accent-color:var(--gold)">
+      愿意为了拍照明显更好，多花 1000 元以上
+    </label>
+  </div>
+  <div style="font-size:12.5px;color:var(--dim);margin:14px 0 8px">还有什么想说的（只有你俩看得到）</div>
+  <textarea id="ownNote" placeholder="比如：不想太重、一定要白色、想要长焦拍演唱会、屏幕要护眼……"></textarea>
+  <div class="acts">
+    <button class="primary" id="savePref">保存我的选择</button>
+    <button class="ghost" id="resetPref">重置</button>
+    <span class="tally" id="prefStamp"></span>
+  </div>
+  <div class="hint">这些存在这台设备的浏览器里，不会传到任何地方。换设备就没了，所以最后拿截图给你哥看一眼就行。</div>
+</section>
+
+<section class="card">
+  <h2>进步奖励（调考 / 月考）</h2>
+  <table id="rewardTable">
+    <thead><tr><th>这一场</th><th>怎么算</th><th>给什么</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div class="hint" id="rewardNote"></div>
+</section>
+
+<footer id="meta"></footer>
+</div>
+<script src="phones.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
