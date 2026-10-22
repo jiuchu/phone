@@ -322,6 +322,133 @@ function renderRewardRef(R) {
     + `</div>` + (R.caveat ? `<div class="hint">${esc(R.caveat)}</div>` : '');
 }
 
+/* ---------- 试算：把上面那张表的规则跑一遍 ---------- */
+const pi = v => { const x = String(v == null ? '' : v).trim(); return x === '' || !isFinite(+x) ? null : Math.round(+x); };
+
+/* 纯函数：进两场的名次/总分 + 这一场的数学单科名次 + 账上已记的两件事，出明细。
+   规则本身一个都不写在这儿 —— 全部读 progress_rewards.calc，跟表里那些句子由校验脚本钉在一起。 */
+function payoutOf(inp) {
+  const M = MODEL || {}, pr = M.progress_rewards || {}, c = pr.calc || {}, sc = M.scoring || {};
+  const cap = v => (num(v) == null ? Infinity : num(v));
+  const perName = num(c.rank_per_name) || 0, stepNames = num(pr.unit_rank) || 0;
+  const perScore = num(c.score_per_step) || 0, perYk = num(c.yuekao_per_step) || 0;
+  const stepPts = num(pr.unit_points) || 0, base = num(sc.baseline_grank);
+  const dk = inp.kind !== 'yk';
+  const pR = pi(inp.prev_rank), rR = pi(inp.rank), pT = pi(inp.prev_total), rT = pi(inp.total);
+  const dRank = (pR != null && rR != null) ? pR - rR : null;
+  const dTot = (pT != null && rT != null) ? rT - pT : null;
+  const lines = [];
+  let guard = false;
+
+  if (dk) {
+    let y = 0, w = '';
+    if (dRank == null) w = '上一场和这一场的年级名次都要填';
+    else if (dRank <= 0) { guard = true; w = dRank === 0 ? '名次没动' : `名次退了 ${-dRank} 名`; }
+    else {
+      const raw = dRank * perName; y = Math.min(raw, cap(c.rank_cap));
+      w = `前进 ${dRank} 名 × ¥${perName}${y < raw ? ` = ¥${raw}，这条封顶 ¥${c.rank_cap}` : ''}`;
+    }
+    lines.push({ rule: '年级名次线（主）', how: w, yuan: y });
+    let s = 0, w2 = '';
+    if (guard) w2 = '上一行名次没前进 ⇒ 这一条整条不结';
+    else if (dRank == null) w2 = '要先看名次：上面两场的年级名次填了才算这条';
+    else if (dTot == null) w2 = '上一场和这一场的总分都要填';
+    else {
+      const st = Math.floor(Math.max(0, dTot) / stepPts), raw = st * perScore;
+      s = Math.min(raw, cap(c.score_cap));
+      w2 = dTot <= 0 ? '卷面分没涨'
+        : `涨 ${dTot} 分 ÷ ${stepPts} = ${st} 档 × ¥${perScore}${s < raw ? ` = ¥${raw}，这条封顶 ¥${c.score_cap}` : ''}`;
+    }
+    lines.push({ rule: '卷面分线（副）', how: w2, yuan: s });
+  } else {
+    let s = 0, w = '';
+    if (dTot == null) w = '上一场小月考的总分没填（第一场没有上一场，这条本来就不结）';
+    else {
+      const st = Math.floor(Math.max(0, dTot) / stepPts), raw = st * perYk;
+      s = Math.min(raw, cap(c.yuekao_cap));
+      w = dTot <= 0 ? '比上一场小月考没涨分'
+        : `涨 ${dTot} 分 ÷ ${stepPts} = ${st} 档 × ¥${perYk}${s < raw ? ` = ¥${raw}，一个月封顶 ¥${c.yuekao_cap}` : ''}`;
+    }
+    lines.push({ rule: '学校小月考', how: w, yuan: s });
+  }
+
+  /* 台阶：一场只结「这一场够到的最高那一级」，而且只在新够到时才结 ——
+     所以问的是账上记到的最好一级，不是问结过哪几级：只问结过的话，
+     停在同一水平也能一格一格往下补钱，那就成了重复给。 */
+  const lad = c.ladder || [], mr = pi(inp.math_rank), best = pi(inp.math_best);
+  let ly = 0, lw = '';
+  if (!lad.length) lw = 'phones.json 里还没写 calc.ladder';
+  else if (mr == null) lw = '没填这一场的数学单科年级名次';
+  else {
+    const reach = lad.filter(x => mr <= x.rank_max).sort((a, b) => a.rank_max - b.rank_max);
+    if (!reach.length) lw = `这一场 ${mr} 名，还没够到最低那一级（前 ${Math.max(...lad.map(x => x.rank_max))} 名）`;
+    else if (best === 0) lw = '六级都已经在账上了 ⇒ 这一条以后不再结';
+    else if (best != null && reach[0].rank_max >= best) lw = `这一场够到的最高一级是前 ${reach[0].rank_max} 名，账上已经记到前 ${best} 名 ⇒ 只结新够到的那一级`;
+    else {
+      ly = reach[0].yuan;
+      lw = `这一场 ${mr} 名，新够到前 ${reach[0].rank_max} 名这一级 ⇒ 一场只结最高那一级${best == null ? '' : `，账上原来记的是前 ${best} 名`}`;
+    }
+  }
+  lines.push({ rule: '数学单科名次台阶', how: lw, yuan: ly });
+
+  let ry = 0, rw = '';
+  if (!dk) rw = '小月考不算这一条（只跟调考的历史最高名次比）';
+  else if (rR == null) rw = '没填这一场的年级名次';
+  else if (base == null) rw = 'phones.json 里没写历史最高名次';
+  else if (rR > base) rw = `这一场 ${rR} 名，还没好过历史最高的第 ${base} 名`;
+  else if (rR === base) rw = `正好 ${base} 名 —— 平纪录不结`;
+  else if (inp.record_paid) rw = '以前已经结过一次 ⇒ 这一条只结一次';
+  else { ry = num(c.record_bonus) || 0; rw = `这一场 ${rR} 名，好过历史最高的第 ${base} 名`; }
+  lines.push({ rule: '调考刷新历史最高', how: rw, yuan: ry });
+
+  const pair = lines.slice(0, dk ? 2 : 1).reduce((a, x) => a + x.yuan, 0);
+  const pairCap = dk ? cap(c.session_cap) : cap(c.yuekao_cap);
+  return {
+    kind: dk ? 'dk' : 'yk', lines, pair, pairCap,
+    pair_hit: pair >= pairCap && pair > 0,
+    total: pair + ly + ry, guard
+  };
+}
+
+let calcKind = 'dk';
+function calcInput() {
+  return {
+    kind: calcKind,
+    prev_rank: $('calcPrevRank').value, rank: $('calcRank').value,
+    prev_total: $('calcPrevTotal').value, total: $('calcTotal').value,
+    math_rank: $('calcMath').value, math_best: $('calcBest').value,
+    record_paid: $('calcRecPaid').checked
+  };
+}
+function renderCalc() {
+  const pr = MODEL.progress_rewards || {}, c = pr.calc || {}, box = $('calcCard');
+  if (!box) return;
+  if (!(c.ladder || []).length) { box.innerHTML = '<div class="note">phones.json 里还没写 calc 这块数字，试算先不能用。</div>'; return; }
+  const low = Math.max(...c.ladder.map(x => x.rank_max));
+  $('calcBest').innerHTML = `<option value="">这套规则上线以来还没进过前 ${low} 名</option>`
+    + c.ladder.slice().sort((a, b) => b.rank_max - a.rank_max)
+      .map(x => `<option value="${x.rank_max}">已经进过前 ${x.rank_max} 名（那一级 ¥${x.yuan} 给过了）</option>`).join('')
+    + `<option value="0">比前 ${Math.min(...c.ladder.map(x => x.rank_max))} 名还好，六级都算给过了</option>`;
+  ['calcDk', 'calcYk', 'calcPrevRank', 'calcRank', 'calcPrevTotal', 'calcTotal', 'calcMath', 'calcBest', 'calcRecPaid']
+    .forEach(id => { const el = $(id); if (el) el.onchange = drawCalc; if (el) el.oninput = drawCalc; });
+  $('calcDk').onclick = () => { calcKind = 'dk'; drawCalc(); };
+  $('calcYk').onclick = () => { calcKind = 'yk'; drawCalc(); };
+  drawCalc();
+}
+function drawCalc() {
+  const r = payoutOf(calcInput()), dk = r.kind === 'dk';
+  $('calcDk').classList.toggle('on', dk);
+  $('calcYk').classList.toggle('on', !dk);
+  $('calcPrevLabel').textContent = dk ? '上一场调考' : '上一场小月考';
+  const rows = r.lines.map(x => `<tr><td>${esc(x.rule)}</td><td>${esc(x.how)}</td><td><b>${x.yuan ? money(x.yuan) : '—'}</b></td></tr>`);
+  const sub = `${dk ? '两条线小计' : '小计'} ${money(r.pair)} · ${dk ? '这两条的上限' : '这一条的上限'} ¥${r.pairCap}${r.pair_hit ? '（已经到顶）' : ''}`;
+  $('calcOut').querySelector('tbody').innerHTML = rows.join('')
+    + `<tr><td>这一场合计</td><td>${sub}${r.guard ? ' · 名次没前进，副的那条按护栏也不结' : ''}</td><td><b>${money(r.total)}</b></td></tr>`;
+  $('calcHint').textContent = r.guard
+    ? '这一场年级名次没前进：按表里那条护栏，名次线和分数线都不结，也不倒扣。'
+    : '这里只是试算，不替你记账 —— 台阶记到前几级、破纪录给没给过，得你自己核。数学涨上去那一晚名次线、分数线、台阶三条同时响，这是故意的。';
+}
+
 /* ---------- 她那一栏 ---------- */
 let prefChk = new Set(), prefOrder = [], sel = new Set();
 function renderPrefs() {
@@ -483,7 +610,7 @@ async function runLive(force) {
     const s = JSON.parse(localStorage.getItem(LS.score) || 'null');
     if (num(s) != null) $('score').value = s;
   } catch (e) { }
-  renderMeta(); renderScoreQuick(); renderHard(); renderPrefs(); renderRewards(); render();
+  renderMeta(); renderScoreQuick(); renderHard(); renderPrefs(); renderRewards(); renderCalc(); render();
   $('score').oninput = render;
   $('onlySel').onchange = render;
   $('clearSel').onclick = () => { sel.clear(); save(LS.sel, []); render(); };
@@ -503,12 +630,12 @@ async function runLive(force) {
 /* 给离线校验脚本和浏览器自检用；正常打开页面不会碰到它 */
 if (typeof globalThis !== 'undefined') globalThis.__PHONE = {
   tierOf, prevBudget, ceilingOf, payPrice, officialPay, rejects, flags, matchInfo, testFor, byMatch,
-  applyLive, runLive, liveTargets, cfgOf,
+  applyLive, runLive, liveTargets, cfgOf, payoutOf,
   inject(list, extra) {
     CFG.phones = list;
     if (extra) Object.assign(CFG.meta, extra);
     MODEL = CFG.meta; DATA_FROM = '测试注入';
-    renderMeta(); renderScoreQuick(); renderHard(); renderPrefs(); renderRewards(); render();
+    renderMeta(); renderScoreQuick(); renderHard(); renderPrefs(); renderRewards(); renderCalc(); render();
   },
   state: () => ({ from: DATA_FROM, n: (CFG.phones || []).length, sel: [...sel], chk: [...prefChk], order: prefOrder })
 };
