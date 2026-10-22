@@ -126,7 +126,7 @@ function matchInfo(p, prefs) {
 /* ---------- 渲染 ---------- */
 function renderMeta() {
   const sc = MODEL.scoring || {};
-  $('baseline').textContent = `参考点：${sc.baseline_where || ''} ${sc.baseline_max ?? ''} 分 · ${sc.scale || ''}`;
+  $('baseline').textContent = `参考点：${sc.baseline_where || ''} ${sc.baseline_max ?? ''} 分 · 年级第 ${sc.baseline_grank ?? ''} 名 · ${sc.scale || ''}`;
   const ps = (CFG.phones || []);
   const ok = ps.filter(p => p.verified !== false).length;
   const rf = MODEL.price_refresh;
@@ -135,7 +135,7 @@ function renderMeta() {
   $('phint').innerHTML = (MODEL.caveats || []).map(c => '· ' + esc(c)).join('<br>');
 }
 function renderScoreQuick() {
-  const tiers = MODEL.budget_tiers || [];
+  const tiers = tierList();
   $('quick').innerHTML = tiers.map(t =>
     `<button class="chipbtn" data-sc="${t.min_score}">${t.min_score} 分 → ${money(t.budget)}</button>`).join('');
   $('quick').querySelectorAll('.chipbtn').forEach(b =>
@@ -304,7 +304,22 @@ function renderRewards() {
   const rows = (pr.items || []).map(it => `<tr${it.dead ? ' class="dead"' : ''}>
     <td>${esc(it.exam)}</td><td>${esc(it.how)}</td><td><b>${esc(it.gives)}</b>${it.why ? `<div class="note">${esc(it.why)}</div>` : ''}</td></tr>`);
   body.innerHTML = rows.join('') || '<tr><td colspan="3" class="note">phones.json 里还没写奖励条目</td></tr>';
-  $('rewardNote').textContent = [pr.baseline ? `起点：${pr.baseline} 分（${pr.unit_points} 分一个档）` : '', pr.note || '', pr.price_fluctuation || ''].filter(Boolean).join(' ');
+  $('rewardNote').textContent = [pr.start_line || '', pr.note || '', pr.price_fluctuation || ''].filter(Boolean).join(' ');
+  renderRewardRef(pr.reference);
+}
+/* 「现在的底」——真实成绩只当参照，不当结算依据，所以这句话必须跟数字一起画出来 */
+function renderRewardRef(R) {
+  const box = $('rewardRef');
+  if (!box) return;
+  if (!R) { box.innerHTML = ''; return; }
+  const pill = (lab, o, extra) => !o ? '' :
+    `<span class="sp">${esc(lab)} ${esc(String(o.total))} 分 · ${esc(String(o.when))}${esc(extra || '')}</span>`;
+  const dk = R.latest_diaokao;
+  box.innerHTML = `<div class="row">${pill('最高调考', R.max_diaokao)}`
+    + pill('最近一场调考', dk, dk && dk.prev_total != null ? `（上一场 ${dk.prev_total} 分 · ${dk.prev_when}）` : '')
+    + pill('最近一场小月考', R.latest_yuekao, R.latest_yuekao && R.latest_yuekao.note ? `（${R.latest_yuekao.note}）` : '')
+    + (R.at ? `<span class="note">成绩记到 ${esc(R.at)}</span>` : '')
+    + `</div>` + (R.caveat ? `<div class="hint">${esc(R.caveat)}</div>` : '');
 }
 
 /* ---------- 她那一栏 ---------- */
