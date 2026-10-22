@@ -472,7 +472,7 @@ function renderPrefs() {
     const i = +b.dataset.i, d = +b.dataset.d, j = i + d;
     if (j < 0 || j >= prefOrder.length) return;
     [prefOrder[i], prefOrder[j]] = [prefOrder[j], prefOrder[i]];
-    savePref(); render();
+    savePref(); renderPrefs(); render();
   });
   $('camPay').checked = !!pref.camPay;
   $('ownNote').value = pref.ownNote || '';
