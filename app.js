@@ -173,6 +173,7 @@ function cardHTML(p, prefs) {
   const m = matchInfo(p, prefs);
   const sp = [];
   const push = (t, cls) => sp.push(`<span class="sp ${cls || ''}">${esc(t)}</span>`);
+  if (p.live_stock === false) push('官网当前缺货', 'bad');   /* 只有官网明确回 false 才标；没报状态的不猜 */
   if (!isNil(p.soc)) push(p.soc); else push('芯片未标明', 'warn');
   push(`${p.ram_gb || '?'}+${p.rom_gb || '?'}GB`, (num(p.ram_gb) >= h.ram_gb_min && num(p.rom_gb) >= h.rom_gb_min) ? 'good' : 'bad');
   if (p.rom_max_gb >= (h.rom_1tb_gb || Infinity)) push('这型号最大能买到 1TB', 'good');
@@ -513,7 +514,7 @@ async function loadData() {
       档位跟着 payPrice 自己重算 —— 所以这一层整个挂掉，页面还是昨天那份能用。
    3) 只改 price_ref / price_date，绝不动 price_kind。price_kind 是国补估算的开关，
       改了等于把「到手价」口径换了一套，档位会无端端跳。 */
-const LIVE_KEY = 'phonelist.live.v1';
+const LIVE_KEY = 'phonelist.live.v2';        /* v1 的缓存只有价格没有货状态，升版让旧缓存作废 */
 const cfgOf = p => p.ram_gb + 'GB+' + p.rom_gb + 'GB';
 const liveTargets = () => (CFG.phones || []).filter(p => p.live_price && p.live_price.via && p.live_price.id);
 function hhmm(ts) {
@@ -529,7 +530,8 @@ async function liveOne(ep, lp, model, cfg, ms) {
     const r = await fetch(u, ctl ? { signal: ctl.signal } : undefined);
     const j = await r.json();
     return (j && j.ok && Number.isFinite(Number(j.price)))
-      ? { price: Number(j.price), at: Number(j.at) || Date.now() }
+      ? { price: Number(j.price), at: Number(j.at) || Date.now(),
+          stock: typeof j.stock === 'boolean' ? j.stock : null }
       : { err: (j && j.err) || '没回一个价' };
   } catch (e) { return { err: String((e && e.message) || e || '读不到') }; }
   finally { if (timer) clearTimeout(timer); }
@@ -538,15 +540,18 @@ async function liveOne(ep, lp, model, cfg, ms) {
    宁可这台沿用快照，也不要在页面上凭空多出一个谁都没见过的价。 */
 function applyLive(map, at, asked) {
   const el = $('liveStamp'), rf = MODEL.price_refresh || {};
-  let used = 0, odd = 0;
+  let used = 0, odd = 0, noStock = 0;
   map = map || {};
   for (const p of liveTargets()) {
+    p.live_stock = null;                       /* 这一轮没读到就清掉，别留上一轮的缺货标记 */
     const r = map[p.id];
     if (!r || !Number.isFinite(Number(r.price))) continue;
     const old = num(p.price_ref);
     if (old != null && (r.price < old * 0.5 || r.price > old * 2)) { odd++; continue; }
     p.price_ref = Number(r.price);
     p.price_date = hhmm(r.at || at);
+    p.live_stock = r.stock === true || r.stock === false ? r.stock : null;
+    if (p.live_stock === false) noStock++;
     used++;
   }
   if (el) {
@@ -555,6 +560,7 @@ function applyLive(map, at, asked) {
       ? `今天的官网商城标价 · ${hhmm(at)} 读到 ${used} 台`
         + (miss ? `，${miss} 台沿用库里快照` : '')
         + (odd ? `；另 ${odd} 台读出来的数和快照差得超过一倍，没采用` : '')
+        + (noStock ? `；其中 ${noStock} 台官网当前缺货` : '')
       : `今天的商城价没读到 · 用的是库里 ${rf.at || '未记时刻'} 那份`;
   }
   render();
