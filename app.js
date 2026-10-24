@@ -113,14 +113,15 @@ function testFor(key, p) {
   }
 }
 function matchInfo(p, prefs) {
-  let yes = 0, ans = 0, unans = 0;
-  for (const k of prefs) {
-    const v = testFor(k, p);
+  let yes = 0, ans = 0, unans = 0, wYes = 0, wAll = 0;
+  for (let i = 0; i < prefs.length; i++) {
+    const w = prefs.length - i;                        /* 排第 1 的条件权重最高，往后依次递减 */
+    const v = testFor(prefs[i], p);
     if (v === undefined) { unans++; continue; }
-    if (v === null) { ans++; continue; }
-    ans++; if (v) yes++;
+    if (v === null) { ans++; wAll += w; continue; }
+    ans++; wAll += w; if (v) { yes++; wYes += w; }
   }
-  return { yes, ans, unans };
+  return { yes, ans, unans, wYes, wAll };
 }
 
 /* ---------- 渲染 ---------- */
@@ -190,7 +191,8 @@ function cardHTML(p, prefs) {
   if (useCh) push('渠道实付价', 'good');
   else if (pay != null && num(p.price_ref) != null && pay < p.price_ref) push(`到手含国补估算（${Math.round((g.rate || 0) * 100)}%、上限 ${money(g.cap_yuan)}）`, 'good');
   const fl = flags(p, MODEL.hard_filters).map(t => `<span class="sp warn">${esc(t)}</span>`).join('');
-  const tally = m.ans ? `<span class="tally">你勾的里面它中了 <b>${m.yes}</b> / ${m.ans} 项${m.unans ? `（${m.unans} 项页面判断不了）` : ''}</span>`
+  const wPct = m.wAll ? Math.round(100 * m.wYes / m.wAll) : 0;
+  const tally = m.ans ? `<span class="tally">你勾的里面它中了 <b>${m.yes}</b> / ${m.ans} 项${prefs.length > 1 ? ` · 按你的排序 ${wPct}%` : ''}${m.unans ? `（${m.unans} 项页面判断不了）` : ''}</span>`
     : `<span class="tally">${m.unans ? `${m.unans} 项要你自己看` : ''}</span>`;
   const dupBrand = String(p.model || '').startsWith(String(p.brand || ''));
   const pic = (Array.isArray(p.img) ? p.img : []).slice(0, 2)
@@ -220,7 +222,7 @@ function cardHTML(p, prefs) {
 function byMatch(list, prefs) {
   return list.sort((a, b) => {
     const ma = matchInfo(a, prefs), mb = matchInfo(b, prefs);
-    const ra = ma.ans ? ma.yes / ma.ans : -1, rb = mb.ans ? mb.yes / mb.ans : -1;
+    const ra = ma.wAll ? ma.wYes / ma.wAll : -1, rb = mb.wAll ? mb.wYes / mb.wAll : -1;
     if (rb !== ra) return rb - ra;
     if (mb.yes !== ma.yes) return mb.yes - ma.yes;
     return (payPrice(a) ?? 9e9) - (payPrice(b) ?? 9e9);
